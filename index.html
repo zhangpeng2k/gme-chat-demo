@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.5.17/dist/vue.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/eruda">eruda.init();</script>
+    <script src="../dist/WebRTCService.min.js"></script>
+    <style>
+        .test-panel {
+            margin-left: 8px;
+            margin-top: 8px;
+        }
+
+        .good-btn {
+            font-size: 18px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app" class="test-panel">
+        <p style="margin: 0;">上行 发送码率：{{brSend}} | RTT：{{rtt}}</p>
+        <!-- 编码器：{{codecName}} | 采样率：{{sampleRate}} | 声道：{{numChannel}} | 丢包数： 收包数： 丢包率：{{pkgLossRate}}-->
+        <p style="margin: 0;" v-for="dsi in downStreamInfoList">下行{{dsi.uin}} 接收码率：{{dsi.brRecv}} | 延迟：{{dsi.delay}} |
+            抖动ms：{{dsi.jitterBufferMs}} | 抖动c：{{dsi.jitterReceived}}</p>
+        <div style="height: 8px;"></div>
+        <label for="input-sdkappid">sdkappid:</label><input id="input-sdkappid" type="text" value="1400284087"><br>
+        <label for="input-openid">openid:</label><input id="input-openid" type="text" value=""><br>
+        <label for="input-roomid">roomid:</label><input id="input-roomid" type="text" value="201811"><br>
+        <label for="select-role">roomtype:</label><select id="select-role" onchange="onSelectRoleChanged();">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+        </select>
+        <br>
+        <br>
+        <input type="checkbox" id="start-rtc-on-enter" checked>
+        <label for="start-rtc-on-enter">进入房间立刻开始推流</label>
+        <br>
+        <button id="start_btn" type="button" class="good-btn">进房</button>
+        <button id="quit_btn" type="button" class="good-btn">退房</button>
+        <button id="open_speaker" type="button" class="good-btn">开扬声器</button>
+        <button id="close_speaker" type="button" class="good-btn">关扬声器</button>
+        <button id="open_autio_btn" type="button" class="good-btn">开麦</button>
+        <button id="close_autio_btn" type="button" class="good-btn">关麦</button>
+    </div>
+    <div id="gme-audio-wrap"></div>
+    <script>
+        // {"userSig":"9wxqG/K1hgb72CKZrJymT6iycraoHtcvLIoovn1udCn6DQuq8be7WnXD1dnDPRO6fp5skpITKYY=","errorCode":0}
+        function onSelectRoleChanged(e) {
+            setTimeout(() => {
+                console.log('select val:', document.getElementById("select-role").value);
+            }, 50);
+        }
+
+        function genRandNumId() {
+            return Number(Math.random() * 1000 * 1000 * 1000 * 10)
+                .toFixed(0);
+        }
+
+        const cSdkAppId = () => document.getElementById("input-sdkappid").value;
+        const cOpenID = () => document.getElementById("input-openid").value;
+        const cRoomNum = () => document.getElementById("input-roomid").value;
+        
+        // const cSdkAppId = () => '1400284087';
+        // const cOpenID = () => genRandNumId()
+        // const cRoomNum = () => '75797'
+        
+        // const LocalDebugAuth = true;
+        const LocalDebugAuth = false;
+        
+        let gmeAPI = new WebGMEAPI();
+
+        window.onload = function () {
+            var tmp_tinyid = genRandNumId();
+            document.getElementById("input-openid").value = tmp_tinyid;
+        };
+
+        onEvent = function (eventType, result) {
+            if (eventType === gmeAPI.event.ITMG_MAIN_EVENT_TYPE_ENTER_ROOM) {
+                alert("EnterRoom");
+            }
+            else if (eventType === gmeAPI.event.ITMG_MAIN_EVNET_TYPE_USER_UPDATE) {
+                app._data.downStreamInfoList = result.PeerInfo;
+                app._data.brSend = result.UploadBRSend;
+                app._data.rtt = result.UploadRTT;
+            }
+            else if (eventType === gmeAPI.event.ITMG_MAIN_EVENT_TYPE_EXIT_ROOM) {
+                alert("ExitRoom");
+            }
+            else if (eventType === gmeAPI.event.ITMG_MAIN_EVENT_TYPE_ROOM_DISCONNECT) {
+                alert("Room Disconnect!!!");
+            }
+        };
+
+        function initGMEWithSig(userSig) {
+            gmeAPI.Init(document, cSdkAppId(), cOpenID());
+            gmeAPI.SetTMGDelegate(onEvent);
+            gmeAPI.EnterRoom(cRoomNum(), 1, userSig);
+        }
+
+
+        function bindButtonEvents() {
+            $("#start_btn").click(function () {
+                console.log('start!');
+
+                if (LocalDebugAuth) {
+                    let appid = cSdkAppId();
+                    let roomID = cRoomNum();
+                    let openID = cOpenID();
+                    let authKey = "";
+                    if (appid === "1400118209") {
+                        authKey = "dk2Cz3aXKVRaK2yX";
+                    }
+                    else if (appid === "1400089356") {
+                        authKey = "1cfbfd2a1a03a53e";
+                    }
+                    let authBuffer = new AuthBufferService(appid, roomID, openID, authKey);
+                    let userSig = authBuffer.getSignature();
+                    initGMEWithSig(userSig);
+                }
+                else {
+                    //步骤1,  获取AuthBuffer
+                    var FetchSigCgi = 'http://134.175.146.244:10005/';
+                    var FetchSigCgi = 'http://localhost:10005/';
+                    
+                    $.ajax({
+                        type: "POST",
+                        url: FetchSigCgi,
+                        dataType: 'json',
+                        data: {
+                            sdkappid: cSdkAppId(),
+                            roomid: cRoomNum(),
+                            openid: cOpenID(),
+                        },
+                        success: function (json) {
+                            //步骤2, 获取AuthBuffer成功
+                            if (json && json.errorCode === 0) {
+                                let userSig = json.userSig;
+                                initGMEWithSig(userSig)
+                            } else {
+                                console.error(json);
+                            }
+                        },
+                        error: function (err) {
+                            console.error(err);
+                        }
+                    });
+                }
+            });
+
+            $("#quit_btn").click(function () {
+                gmeAPI.ExitRoom();
+            });
+
+            $("#open_speaker").click(function () {
+                gmeAPI.EnableSpeaker(true);
+            });
+
+            $("#close_speaker").click(function () {
+                gmeAPI.EnableSpeaker(false);
+            });
+
+            $("#open_autio_btn").click(() => {
+                gmeAPI.EnableMic(true);
+            });
+
+            $("#close_autio_btn").click(() => {
+                gmeAPI.EnableMic(false);
+            });
+        }
+
+        var app = new Vue({
+            el: '#app',
+            data: {
+                brSend: '?',
+                rtt: '?',
+                downStreamInfoList: [{
+                    brRecv: '?',
+                    delay: '?',
+                    jitterBufferMs: '?',
+                    jitterReceived: '?'
+                }]
+            },
+            methods: {
+                //
+            },
+            mounted: () => {
+                bindButtonEvents();
+            }
+        });
+    </script>
+</body>
+
+</html>
