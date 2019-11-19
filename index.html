@@ -36,6 +36,9 @@
             <option value="3">3</option>
         </select>
         <br>
+        <p>请协商好房间号,纯数字</p>
+        <p>同时很多人发言，房间会很嘈杂（不发言请闭麦）</p>        
+        <p>这里只是个demo。没有权限相关代码，后续也许会做个完整的聊天室功能_(:з」∠)_</p>
         <br>
         <input type="checkbox" id="start-rtc-on-enter" checked>
         <label for="start-rtc-on-enter">进入房间立刻开始推流</label>
@@ -124,8 +127,8 @@
                 }
                 else {
                     //步骤1,  获取AuthBuffer
-                    var FetchSigCgi = 'http://134.175.146.244:10005/';
-                    var FetchSigCgi = 'http://localhost:10005/';
+                    // var FetchSigCgi = 'http://134.175.146.244:10005/';
+                    var FetchSigCgi = 'http://chat.zhangpeng2k.com:10005/';
                     
                     $.ajax({
                         type: "POST",
