@@ -4,9 +4,11 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link rel="stylesheet" href="https://unpkg.com/element-ui@2.12.0/lib/theme-chalk/index.css">
     <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@2.5.17/dist/vue.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/eruda">eruda.init();</script>
+    <script src="https://unpkg.com/element-ui@2.12.0/lib/index.js"></script>
     <script src="./dist/WebRTCService.min.js"></script>
     <style>
         .test-panel {
@@ -22,165 +24,69 @@
 
 <body>
     <div id="app" class="test-panel">
-        <p style="margin: 0;">上行 发送码率：{{brSend}} | RTT：{{rtt}}</p>
-        <!-- 编码器：{{codecName}} | 采样率：{{sampleRate}} | 声道：{{numChannel}} | 丢包数： 收包数： 丢包率：{{pkgLossRate}}-->
-        <p style="margin: 0;" v-for="dsi in downStreamInfoList">下行{{dsi.uin}} 接收码率：{{dsi.brRecv}} | 延迟：{{dsi.delay}} |
-            抖动ms：{{dsi.jitterBufferMs}} | 抖动c：{{dsi.jitterReceived}}</p>
-        <div style="height: 8px;"></div>
-        <label for="input-sdkappid">sdkappid:</label><input id="input-sdkappid" type="text" value="1400284087"><br>
-        <label for="input-openid">openid:</label><input id="input-openid" type="text" value=""><br>
-        <label for="input-roomid">roomid:</label><input id="input-roomid" type="text" value="201811"><br>
-        <label for="select-role">roomtype:</label><select id="select-role" onchange="onSelectRoleChanged();">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-        </select>
-        <br>
-        <p>请协商好房间号,纯数字</p>
-        <p>同时很多人发言，房间会很嘈杂（不发言请闭麦）</p>        
-        <p>这里只是个demo。没有权限相关代码，后续也许会做个完整的聊天室功能_(:з」∠)_</p>
-        <br>
-        <input type="checkbox" id="start-rtc-on-enter" checked>
-        <label for="start-rtc-on-enter">进入房间立刻开始推流</label>
-        <br>
-        <button id="start_btn" type="button" class="good-btn">进房</button>
-        <button id="quit_btn" type="button" class="good-btn">退房</button>
-        <button id="open_speaker" type="button" class="good-btn">开扬声器</button>
-        <button id="close_speaker" type="button" class="good-btn">关扬声器</button>
-        <button id="open_autio_btn" type="button" class="good-btn">开麦</button>
-        <button id="close_autio_btn" type="button" class="good-btn">关麦</button>
+        <el-card class="box-card">
+            <div>
+                <p style="margin: 0;">上行 发送码率：{{brSend}} | RTT：{{rtt}}</p>
+                <!-- 编码器：{{codecName}} | 采样率：{{sampleRate}} | 声道：{{numChannel}} | 丢包数： 收包数： 丢包率：{{pkgLossRate}}-->
+                <p style="margin: 0;" v-for="dsi in downStreamInfoList">下行{{dsi.uin}} 接收码率：{{dsi.brRecv}} |
+                    延迟：{{dsi.delay}} |
+                    抖动ms：{{dsi.jitterBufferMs}} | 抖动c：{{dsi.jitterReceived}}</p>
+                <p></p>
+                <el-alert style="width:600px" title="聊天室尚未开发权限系统，请和您的好友约定好避免多人同时发言。" type="info" close-text="我知道了~">
+                </el-alert>
+                <el-divider></el-divider>
+                <span>房间号：</span>
+                <el-input v-model="roomId" :disabled='inRoom' style="width:200px"></el-input>
+                <span style="color:#999;font-size: 14px;">请输入纯数字</span>
+                <p></p>
+                <span>扬声器：</span>
+                <el-switch v-model="speakerStatus" :disabled='!inRoom' @change="handleSpeaker" active-text="开启"
+                    inactive-text="🔈关闭">
+                </el-switch>
+                <p></p>
+                <span>麦克风：</span>
+                <el-switch v-model="micStatus" :disabled='!inRoom' @change="handleMic" active-text="开启"
+                    inactive-text="🎙关闭">
+                </el-switch>
+                <p>麦克风音量：</p>
+                <el-slider v-model="volume" style="width:400px" @change="changeVolume">
+                </el-slider>
+                <br>
+                <el-button type='success' :disabled='inRoom' @click="joinRoom">进入房间</el-button>
+                <el-button type="danger" :disabled='!inRoom' @click="exitRoom">退出房间</el-button>
+
+            </div>
+        </el-card>
     </div>
     <div id="gme-audio-wrap"></div>
     <script>
-        // {"userSig":"9wxqG/K1hgb72CKZrJymT6iycraoHtcvLIoovn1udCn6DQuq8be7WnXD1dnDPRO6fp5skpITKYY=","errorCode":0}
-        function onSelectRoleChanged(e) {
-            setTimeout(() => {
-                console.log('select val:', document.getElementById("select-role").value);
-            }, 50);
-        }
+
 
         function genRandNumId() {
             return Number(Math.random() * 1000 * 1000 * 1000 * 10)
                 .toFixed(0);
         }
 
-        const cSdkAppId = () => document.getElementById("input-sdkappid").value;
-        const cOpenID = () => document.getElementById("input-openid").value;
-        const cRoomNum = () => document.getElementById("input-roomid").value;
-        
-        // const cSdkAppId = () => '1400284087';
-        // const cOpenID = () => genRandNumId()
-        // const cRoomNum = () => '75797'
-        
-        // const LocalDebugAuth = true;
         const LocalDebugAuth = false;
-        
+
         let gmeAPI = new WebGMEAPI();
 
-        window.onload = function () {
-            var tmp_tinyid = genRandNumId();
-            document.getElementById("input-openid").value = tmp_tinyid;
-        };
-
-        onEvent = function (eventType, result) {
-            if (eventType === gmeAPI.event.ITMG_MAIN_EVENT_TYPE_ENTER_ROOM) {
-                alert("EnterRoom");
-            }
-            else if (eventType === gmeAPI.event.ITMG_MAIN_EVNET_TYPE_USER_UPDATE) {
-                app._data.downStreamInfoList = result.PeerInfo;
-                app._data.brSend = result.UploadBRSend;
-                app._data.rtt = result.UploadRTT;
-            }
-            else if (eventType === gmeAPI.event.ITMG_MAIN_EVENT_TYPE_EXIT_ROOM) {
-                alert("ExitRoom");
-            }
-            else if (eventType === gmeAPI.event.ITMG_MAIN_EVENT_TYPE_ROOM_DISCONNECT) {
-                alert("Room Disconnect!!!");
-            }
-        };
-
-        function initGMEWithSig(userSig) {
-            gmeAPI.Init(document, cSdkAppId(), cOpenID());
-            gmeAPI.SetTMGDelegate(onEvent);
-            gmeAPI.EnterRoom(cRoomNum(), 1, userSig);
-        }
-
-
-        function bindButtonEvents() {
-            $("#start_btn").click(function () {
-                console.log('start!');
-
-                if (LocalDebugAuth) {
-                    let appid = cSdkAppId();
-                    let roomID = cRoomNum();
-                    let openID = cOpenID();
-                    let authKey = "";
-                    if (appid === "1400118209") {
-                        authKey = "dk2Cz3aXKVRaK2yX";
-                    }
-                    else if (appid === "1400089356") {
-                        authKey = "1cfbfd2a1a03a53e";
-                    }
-                    let authBuffer = new AuthBufferService(appid, roomID, openID, authKey);
-                    let userSig = authBuffer.getSignature();
-                    initGMEWithSig(userSig);
-                }
-                else {
-                    //步骤1,  获取AuthBuffer
-                    // var FetchSigCgi = 'http://134.175.146.244:10005/';
-                    var FetchSigCgi = 'https://www.zhangpeng2k.com/chat-serve';
-                    
-                    $.ajax({
-                        type: "POST",
-                        url: FetchSigCgi,
-                        dataType: 'json',
-                        data: {
-                            sdkappid: cSdkAppId(),
-                            roomid: cRoomNum(),
-                            openid: cOpenID(),
-                        },
-                        success: function (json) {
-                            //步骤2, 获取AuthBuffer成功
-                            if (json && json.errorCode === 0) {
-                                let userSig = json.userSig;
-                                initGMEWithSig(userSig)
-                            } else {
-                                console.error(json);
-                            }
-                        },
-                        error: function (err) {
-                            console.error(err);
-                        }
-                    });
-                }
-            });
-
-            $("#quit_btn").click(function () {
-                gmeAPI.ExitRoom();
-            });
-
-            $("#open_speaker").click(function () {
-                gmeAPI.EnableSpeaker(true);
-            });
-
-            $("#close_speaker").click(function () {
-                gmeAPI.EnableSpeaker(false);
-            });
-
-            $("#open_autio_btn").click(() => {
-                gmeAPI.EnableMic(true);
-            });
-
-            $("#close_autio_btn").click(() => {
-                gmeAPI.EnableMic(false);
-            });
-        }
 
         var app = new Vue({
             el: '#app',
             data: {
                 brSend: '?',
                 rtt: '?',
+                value1: '',
+                value2: '',
+                inRoom: false,
+                sdkAppId: 1400284087,
+                roomId: 10086,
+                openId: genRandNumId(),
+                speakerStatus: false,
+                micStatus: false,
+                volume: 20,
+                FetchSigCgi: 'https://www.zhangpeng2k.com/chat-serve',
                 downStreamInfoList: [{
                     brRecv: '?',
                     delay: '?',
@@ -189,10 +95,90 @@
                 }]
             },
             methods: {
-                //
+                joinRoom() {
+                    var that = this
+
+                    $.ajax({
+                        type: "POST",
+                        url: that.FetchSigCgi,
+                        dataType: 'json',
+                        data: {
+                            sdkappid: this.sdkAppId,
+                            roomid: this.roomId,
+                            openid: this.openId,
+                        },
+                        success: function (json) {
+                            //步骤2, 获取AuthBuffer成功
+                            if (json && json.errorCode === 0) {
+                                let userSig = json.userSig;
+                                that.initGMEWithSig(userSig)
+                            } else {
+                                console.error(json);
+                            }
+                        },
+                        error: function (err) {
+                            console.error(err);
+                        }
+                    });
+                },
+                exitRoom() {
+                    gmeAPI.ExitRoom();
+                },
+                initGMEWithSig(userSig) {
+                    gmeAPI.Init(document, this.sdkAppId, this.openId);
+                    gmeAPI.SetTMGDelegate(this.onEvent);
+                    gmeAPI.EnterRoom(this.roomId, 1, userSig);
+
+                },
+                changeVolume(val) {
+                    gmeAPI.SetMicVolume(val);
+                },
+                handleSpeaker(val) {
+                    gmeAPI.EnableSpeaker(val);
+                },
+                handleMic(val) {
+                    gmeAPI.EnableMic(val);
+                },
+                onEvent(eventType, result) {
+                    if (eventType === gmeAPI.event.ITMG_MAIN_EVENT_TYPE_ENTER_ROOM) {
+                        // alert("EnterRoom");
+                        this.$message({
+                            type: 'success',
+                            message: '已进入房间！'
+                        })
+                        this.inRoom = true
+                        gmeAPI.SetMicVolume(this.volume);
+                    }
+                    else if (eventType === gmeAPI.event.ITMG_MAIN_EVNET_TYPE_USER_UPDATE) {
+                        this.downStreamInfoList = result.PeerInfo;
+                        this.brSend = result.UploadBRSend;
+                        this.rtt = result.UploadRTT;
+                        console.log(result);
+                        
+                    }
+                    else if (eventType === gmeAPI.event.ITMG_MAIN_EVENT_TYPE_EXIT_ROOM) {
+                        this.$message({
+                            type: 'info',
+                            message: '已退出房间！'
+                        })
+                        this.inRoom = false
+                    }
+                    else if (eventType === gmeAPI.event.ITMG_MAIN_EVENT_TYPE_ROOM_DISCONNECT) {
+                        this.$message({
+                            type: 'info',
+                            message: 'Room Disconnect!!!'
+                        })
+                    }
+                }
             },
-            mounted: () => {
-                bindButtonEvents();
+            mounted() {
+                this.$notify({
+                    title: '使用提示',
+                    type: 'info',
+                    dangerouslyUseHTMLString: true,
+                    message: '<p>1. 输入房间号</p><p>2. 点击加入房间按钮<p>3. 开启扬声器,开启麦克风</p>',
+                    duration: 0
+                });
             }
         });
     </script>
